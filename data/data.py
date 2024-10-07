@@ -7,12 +7,11 @@ from models.layers.mesh import Mesh
 
 class ClassificationData(data.Dataset):
 
-    def __init__(self, dataroot, phase, export_folder, device, ninput_edges, num_aug, scale_verts=None, flip_edges=None, slide_verts=None):
+    def __init__(self, dataroot, phase, device, ninput_edges, num_aug, scale_verts=None, flip_edges=None, slide_verts=None):
         super(ClassificationData, self).__init__()
       
         self.dataroot = dataroot  
         self.phase = phase  
-        self.export_folder = export_folder
         self.device = device
         self.ninput_edges = ninput_edges
         self.num_aug = num_aug
@@ -40,7 +39,7 @@ class ClassificationData(data.Dataset):
     def __getitem__(self, index):
         path = self.paths[index][0]
         label = self.paths[index][1]
-        mesh = Mesh(file=path, hold_history=False, export_folder=self.export_folder, num_aug=self.num_aug, scale_verts=self.scale_verts, flip_edges=self.flip_edges, slide_verts=self.slide_verts)
+        mesh = Mesh(file=path, num_aug=self.num_aug, scale_verts=self.scale_verts, flip_edges=self.flip_edges, slide_verts=self.slide_verts)
         meta = {'mesh': mesh, 'label': label}
         edge_features = mesh.extract_features()
         edge_features = pad(edge_features, self.ninput_edges)
@@ -76,8 +75,7 @@ class ClassificationData(data.Dataset):
           mean = mean / (i + 1)
           std = std / (i + 1)
           
-          transform_dict = {'mean': mean[:, np.newaxis], 'std': std[:, np.newaxis],
-                            'ninput_channels': len(mean)}
+          transform_dict = {'mean': mean[:, np.newaxis], 'std': std[:, np.newaxis], 'ninput_channels': len(mean)}
           with open(mean_std_cache, 'wb') as f:
               pickle.dump(transform_dict, f)
           print('saved: ', mean_std_cache)
