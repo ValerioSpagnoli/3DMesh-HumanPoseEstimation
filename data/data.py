@@ -42,7 +42,6 @@ class ClassificationData(data.Dataset):
         label = self.paths[index][1]
         mesh = Mesh(file=path, hold_history=False, export_folder=self.export_folder, num_aug=self.num_aug, scale_verts=self.scale_verts, flip_edges=self.flip_edges, slide_verts=self.slide_verts)
         meta = {'mesh': mesh, 'label': label}
-        # get edge features
         edge_features = mesh.extract_features()
         edge_features = pad(edge_features, self.ninput_edges)
         meta['edge_features'] = (edge_features - self.mean) / self.std

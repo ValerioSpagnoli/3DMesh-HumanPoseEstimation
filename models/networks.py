@@ -65,10 +65,63 @@ def init_weights(net, init_type, init_gain):
             init.normal_(m.weight.data, 1.0, init_gain)
             init.constant_(m.bias.data, 0.0)
     net.apply(init_func)
+    return net
 
 ##############################################################################
 # Classes For Classification / Segmentation Networks
 ##############################################################################
+
+class MeshClassifier(nn.Module):
+    def __init__(self, ninput_channels, nclasses, ninput_edges):
+        super(MeshClassifier, self).__init__()
+        
+        self.ninput_channels = ninput_channels
+        self.nclasses = nclasses
+        self.ninput_edges = ninput_edges
+        
+        self.conv0 = MeshConv(self.ninput_channels, 64)
+        self.norm0 = nn.BatchNorm2d(64)
+        self.pool0 = MeshPool(600)
+        
+        self.conv1 = MeshConv(64, 128)
+        self.norm1 = nn.BatchNorm2d(128)
+        self.pool1 = MeshPool(450)
+        
+        self.conv2 = MeshConv(128, 256) 
+        self.norm2 = nn.BatchNorm2d(256)
+        self.pool2 = MeshPool(300)
+        
+        self.conv3 = MeshConv(256, 512)
+        self.norm3 = nn.BatchNorm2d(512)
+        self.pool3 = MeshPool(180)
+        
+        self.fc1 = nn.Linear(512, 100)
+        self.fc2 = nn.Linear(100, nclasses)
+
+    def forward(self, x, mesh):
+        
+        x = self.conv0(x, mesh)
+        x = F.relu(self.norm0(x))
+        # x = self.pool0(x, mesh)
+        
+        x = self.conv1(x, mesh)
+        x = F.relu(self.norm1(x))
+        # x = self.pool1(x, mesh)
+        
+        x = self.conv2(x, mesh)
+        x = F.relu(self.norm2(x))
+        # x = self.pool2(x, mesh)
+        
+        x = self.conv3(x, mesh)
+        x = F.relu(self.norm3(x))
+        # x = self.pool3(x, mesh)
+        
+        x = x.view(-1, 512)
+        x = F.relu(self.fc1(x))
+        x = self.fc2(x)
+        
+        return x
+
 
 class MeshConvNet(nn.Module):
     """Network for learning a global shape descriptor (classification)

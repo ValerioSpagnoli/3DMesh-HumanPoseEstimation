@@ -10,13 +10,7 @@ class ClassifierModel:
                  nclasses, 
                  ninput_channels, 
                  checkpoints_dir='checkpoints', 
-                 ncf=[64, 128, 256, 256], 
                  ninput_edges=750, 
-                 pool_res=[600, 450, 300, 180],
-                 fc_n=100, 
-                 resblocks=3, 
-                 norm_type='batch', 
-                 num_groups=16, 
                  init_type='normal', 
                  init_gain=0.02, 
                  lr=0.0001, 
@@ -31,10 +25,13 @@ class ClassifierModel:
         self.soft_label = None
         self.loss = None
 
-        norm_layer = networks.get_norm_layer(norm_type=norm_type, num_groups=num_groups)
-        net = networks.MeshConvNet(norm_layer, ninput_channels, ncf, nclasses, ninput_edges, pool_res, fc_n, resblocks)
+        self.device = device
+        self.is_train = is_train
+        
+        net = networks.MeshClassifier(ninput_channels, nclasses, ninput_edges)
         self.net = networks.init_weights(net, init_type, init_gain)
-
+        self.net.to(device)
+        
         self.net.train(is_train)
         self.criterion = torch.nn.CrossEntropyLoss().to(device)
 
@@ -44,8 +41,6 @@ class ClassifierModel:
         else:
             self.load_network(load_epoch)
             
-        self.device = device
-        self.is_train = is_train
 
     def set_input(self, data):
         input_edge_features = torch.from_numpy(data['edge_features']).float()
@@ -59,7 +54,8 @@ class ClassifierModel:
         return out
     
     def backward(self, out):
-        self.loss = self.criterion(out, self.labels)
+        labels = self.labels.repeat(out.shape[0])
+        self.loss = self.criterion(out, labels)
         self.loss.backward()
 
     def optimize_parameters(self):
