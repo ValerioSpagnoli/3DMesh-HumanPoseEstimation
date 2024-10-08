@@ -7,7 +7,7 @@ from models.layers.mesh import Mesh
 
 class ClassificationData(data.Dataset):
 
-    def __init__(self, dataroot, phase, device, ninput_edges, num_aug, scale_verts=None, flip_edges=None, slide_verts=None):
+    def __init__(self, dataroot, phase, device, ninput_edges, num_aug, hold_history=True, export_folder='export', scale_verts=None, flip_edges=None, slide_verts=None):
         super(ClassificationData, self).__init__()
       
         self.dataroot = dataroot  
@@ -15,9 +15,12 @@ class ClassificationData(data.Dataset):
         self.device = device
         self.ninput_edges = ninput_edges
         self.num_aug = num_aug
+        self.hold_history = hold_history
+        self.export_folder = export_folder
         self.scale_verts = scale_verts
         self.flip_edges = flip_edges
         self.slide_verts = slide_verts
+        
         
         self.mean = 0
         self.std = 1
@@ -39,7 +42,7 @@ class ClassificationData(data.Dataset):
     def __getitem__(self, index):
         path = self.paths[index][0]
         label = self.paths[index][1]
-        mesh = Mesh(file=path, num_aug=self.num_aug, scale_verts=self.scale_verts, flip_edges=self.flip_edges, slide_verts=self.slide_verts)
+        mesh = Mesh(file=path, hold_history=self.hold_history, export_folder=self.export_folder, num_aug=self.num_aug, scale_verts=self.scale_verts, flip_edges=self.flip_edges, slide_verts=self.slide_verts)
         meta = {'mesh': mesh, 'label': label}
         edge_features = mesh.extract_features()
         edge_features = pad(edge_features, self.ninput_edges)

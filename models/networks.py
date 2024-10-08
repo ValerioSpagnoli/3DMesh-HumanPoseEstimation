@@ -83,20 +83,35 @@ class MeshClassifier(nn.Module):
         self.norm0 = nn.BatchNorm2d(64)
         self.pool0 = MeshPool(600)
         
+        self.conv_res_0 = MResConv(64, 64)
+        self.norm_res_0 = nn.BatchNorm2d(64)
+        self.pool_res_0 = MeshPool(300)
+        
         self.conv1 = MeshConv(64, 128)
         self.norm1 = nn.BatchNorm2d(128)
-        self.pool1 = MeshPool(450)
+        self.pool1 = MeshPool(150)
         
-        self.conv2 = MeshConv(128, 256) 
+        self.conv_res_1 = MResConv(128, 128)
+        self.norm_res_1 = nn.BatchNorm2d(128)
+        self.pool_res_1 = MeshPool(75)
+        
+        self.conv2 = MeshConv(128, 256)
         self.norm2 = nn.BatchNorm2d(256)
-        self.pool2 = MeshPool(300)
+        self.pool2 = MeshPool(38)
+        
+        self.conv_res_2 = MResConv(256, 256)
+        self.norm_res_2 = nn.BatchNorm2d(256)
+        self.pool_res_2 = MeshPool(19)
         
         self.conv3 = MeshConv(256, 512)
         self.norm3 = nn.BatchNorm2d(512)
-        self.pool3 = MeshPool(180)
+        self.pool3 = MeshPool(10)
         
-        self.fc1 = nn.Linear(512, 100)
-        self.fc2 = nn.Linear(100, nclasses)
+        self.fc1 = nn.Linear(512, 512)
+        self.fc2 = nn.Linear(512, 256)
+        self.fc3 = nn.Linear(256, 128)
+        self.fc4 = nn.Linear(128, self.nclasses)
+        
 
     def forward(self, x, mesh):
         
@@ -104,21 +119,38 @@ class MeshClassifier(nn.Module):
         x = F.relu(self.norm0(x))
         # x = self.pool0(x, mesh)
         
+        x = self.conv_res_0(x, mesh)
+        x = F.relu(self.norm_res_0(x))
+        # x = self.pool_res_0(x, mesh)
+        
         x = self.conv1(x, mesh)
         x = F.relu(self.norm1(x))
         # x = self.pool1(x, mesh)
         
+        x = self.conv_res_1(x, mesh)
+        x = F.relu(self.norm_res_1(x))
+        # x = self.pool_res_1(x, mesh)
+        
         x = self.conv2(x, mesh)
         x = F.relu(self.norm2(x))
         # x = self.pool2(x, mesh)
+        
+        x = self.conv_res_2(x, mesh)
+        x = F.relu(self.norm_res_2(x))
+        # x = self.pool_res_2(x, mesh)
         
         x = self.conv3(x, mesh)
         x = F.relu(self.norm3(x))
         # x = self.pool3(x, mesh)
         
         x = x.view(-1, 512)
+        
         x = F.relu(self.fc1(x))
-        x = self.fc2(x)
+        x = F.relu(self.fc2(x))
+        x = F.relu(self.fc3(x))
+        x = self.fc4(x)
+        
+        x = F.log_softmax(x, dim=1)
         
         return x
 
