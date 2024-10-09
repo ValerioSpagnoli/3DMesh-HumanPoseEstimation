@@ -1,3 +1,0 @@
-[submodule "MeshCNN"]
-	path = MeshCNN
-	url = git@github.com:ranahanocka/MeshCNN.git
