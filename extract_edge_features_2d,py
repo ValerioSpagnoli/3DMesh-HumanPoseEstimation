@@ -3,27 +3,43 @@ import trimesh
 import torch
 from tqdm import tqdm
 
-def simple_features_2d(edge_properties, device):
-    # Convert vertices to tensors and calculate edge length only once
-    edge_vertex_0 = torch.tensor(edge_properties['vertices'][0], device=device)
-    edge_vertex_1 = torch.tensor(edge_properties['vertices'][1], device=device)
-    edge_length = torch.norm(edge_vertex_0 - edge_vertex_1)
+def batch_simple_features_2d(edges_properties, device):
+    """
+    Process all edge properties in a batch instead of iterating over each edge.
+    """
+    num_edges = len(edges_properties)
 
-    edge_features = torch.cat([edge_vertex_0, edge_vertex_1, edge_length.unsqueeze(0)])
+    # Pre-allocate tensors for all edges and their neighbors
+    edge_vertices_0 = torch.zeros((num_edges, 3), device=device)
+    edge_vertices_1 = torch.zeros((num_edges, 3), device=device)
+    neighbor_0_v0 = torch.zeros((num_edges, 3), device=device)
+    neighbor_0_v1 = torch.zeros((num_edges, 3), device=device)
+    neighbor_1_v0 = torch.zeros((num_edges, 3), device=device)
+    neighbor_1_v1 = torch.zeros((num_edges, 3), device=device)
+    
+    # Fill tensors with edge and neighbor vertices
+    for i, edge_properties in enumerate(edges_properties):
+        edge_vertices_0[i] = torch.tensor(edge_properties['vertices'][0], device=device)
+        edge_vertices_1[i] = torch.tensor(edge_properties['vertices'][1], device=device)
 
-    def extract_neighbor_features(neighbor):
-        v0 = torch.tensor(neighbor[0], device=device)
-        v1 = torch.tensor(neighbor[1], device=device)
-        length = torch.norm(v0 - v1)
-        return torch.cat([v0, v1, length.unsqueeze(0)])
+        neighbor_0_v0[i] = torch.tensor(edge_properties['face_0']['neighbor_0']['vertices'][0], device=device)
+        neighbor_0_v1[i] = torch.tensor(edge_properties['face_0']['neighbor_0']['vertices'][1], device=device)
 
-    # Pre-calculate neighbor features for both faces
-    f0_n0_features = extract_neighbor_features(edge_properties[f'face_0']['neighbor_0']['vertices'])
-    f0_n1_features = extract_neighbor_features(edge_properties[f'face_0']['neighbor_1']['vertices'])
-    f1_n0_features = extract_neighbor_features(edge_properties[f'face_1']['neighbor_0']['vertices'])
-    f1_n1_features = extract_neighbor_features(edge_properties[f'face_1']['neighbor_1']['vertices'])
+        neighbor_1_v0[i] = torch.tensor(edge_properties['face_0']['neighbor_1']['vertices'][0], device=device)
+        neighbor_1_v1[i] = torch.tensor(edge_properties['face_0']['neighbor_1']['vertices'][1], device=device)
 
-    return torch.stack([edge_features, f0_n0_features, f0_n1_features, f1_n0_features, f1_n1_features])
+    # Compute edge lengths in batch
+    edge_lengths = torch.norm(edge_vertices_0 - edge_vertices_1, dim=1, keepdim=True)
+    neighbor_0_lengths = torch.norm(neighbor_0_v0 - neighbor_0_v1, dim=1, keepdim=True)
+    neighbor_1_lengths = torch.norm(neighbor_1_v0 - neighbor_1_v1, dim=1, keepdim=True)
+
+    # Concatenate the features in a batch
+    edge_features = torch.cat([edge_vertices_0, edge_vertices_1, edge_lengths], dim=1)
+    neighbor_0_features = torch.cat([neighbor_0_v0, neighbor_0_v1, neighbor_0_lengths], dim=1)
+    neighbor_1_features = torch.cat([neighbor_1_v0, neighbor_1_v1, neighbor_1_lengths], dim=1)
+
+    # Stack all features into a single tensor [num_edges, 3 (features), 7 (dimensions)]
+    return torch.stack([edge_features, neighbor_0_features, neighbor_1_features], dim=1)
 
 def compute_edges_properties(mesh):
     vertices = mesh.vertices
@@ -70,10 +86,8 @@ if __name__ == '__main__':
                 mesh = trimesh.load(mesh_path)
                 edges_properties = compute_edges_properties(mesh)
 
-                # Pre-allocate tensor for edge features to avoid cat
-                edges_features = torch.zeros((len(edges_properties), 5, 7), device=device)
-                for i, edge_properties in enumerate(edges_properties):
-                    edges_features[i] = simple_features_2d(edge_properties, device)
+                # Use batch processing for edge features
+                edges_features = batch_simple_features_2d(edges_properties, device)
                 
                 subfolder_processed_path = os.path.join(processed_data_path, subfolder)
                 os.makedirs(subfolder_processed_path, exist_ok=True)
