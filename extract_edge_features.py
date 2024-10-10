@@ -11,6 +11,7 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader, random_split
 from sklearn.metrics import confusion_matrix
 
+# Compute the meshcnn-like features for just one edge
 def meshcnn_like_features(edge_properties):
   edge_features = {
     'dihaedral_angle': 0,
@@ -28,7 +29,12 @@ def meshcnn_like_features(edge_properties):
   normal_0 = normal_0 / np.linalg.norm(normal_0)
   normal_1 = np.cross(face_1_vertices[1] - face_1_vertices[0], face_1_vertices[2] - face_1_vertices[0]).astype(np.float32)
   normal_1 = normal_1 / np.linalg.norm(normal_1)
-  dihedral_angle = np.arccos(np.dot(normal_0, normal_1))
+
+  cos_angle = np.dot(normal_0, normal_1)
+  cos_angle = np.clip(cos_angle, -1, 1)
+  dihedral_angle = np.arccos(cos_angle)
+
+  # FEATURE 1: dihaedral angle
   edge_features['dihaedral_angle'] = dihedral_angle
   
   #* Compute the inner angles
@@ -42,7 +48,9 @@ def meshcnn_like_features(edge_properties):
     d1 = d1 / np.linalg.norm(d1)
     d2 = vertex_2 - common_vertex
     d2 = d2 / np.linalg.norm(d2)
-    inner_angle = np.arccos(np.dot(d1, d2))
+    cos_angle = np.clip(np.dot(d1, d2), -1, 1)
+    inner_angle = np.arccos(cos_angle)
+    # FEATURE 2/3: inner angles
     edge_features[f'inner_angle_{i}'] = inner_angle
   
   #* Compute the length-height ratio  
@@ -53,8 +61,9 @@ def meshcnn_like_features(edge_properties):
     face_vertex_2 = edge_properties[f'face_{i}']['vertices'][2]
     face_area = np.linalg.norm(np.cross(face_vertex_1 - face_vertex_0, face_vertex_2 - face_vertex_0))
     length_height_ratio = (edge_length*edge_length) / (2*face_area)
+    # FEATURE 4/5: length height ratio
     edge_features[f'length_height_ratio_{i}'] = length_height_ratio
-        
+
   return edge_features
 
 def simple_features(edge_properties):
@@ -129,7 +138,7 @@ def compute_edges_features(mesh):
     #* Simple features
     #edges_features.append(simple_features(edge_properties))
     
-  return np.array(edges_features)
+  return np.array([[d['dihaedral_angle'], d['inner_angle_1'], d['inner_angle_2'], d['length_height_ratio_1'], d['length_height_ratio_2']] for d in edges_features])
 
 
 if __name__ == '__main__':  
