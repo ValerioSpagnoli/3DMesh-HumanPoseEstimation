@@ -11,7 +11,6 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader, random_split
 from sklearn.metrics import confusion_matrix
 
-# Compute the meshcnn-like features for just one edge
 def meshcnn_like_features(edge_properties):
   edge_features = {
     'dihaedral_angle': 0,
@@ -73,8 +72,52 @@ def simple_features(edge_properties):
   
   return np.array([vertex_0[0], vertex_0[1], vertex_0[2], vertex_1[0], vertex_1[1], vertex_1[2], edge_length])
 
-def compute_edges_features(mesh):
+def simple_features_2d(edge_properties):
+  edge_vertex_0 = edge_properties['vertices'][0]
+  edge_vertex_1 = edge_properties['vertices'][1]
+  edge_length = np.linalg.norm(edge_properties['vertices'][0] - edge_properties['vertices'][1])
+  edge_features = [edge_vertex_0[0], edge_vertex_0[1], edge_vertex_0[2], edge_vertex_1[0], edge_vertex_1[1], edge_vertex_1[2], edge_length]
   
+  f0_n0_features = np.zeros(7)
+  f0_n1_features = np.zeros(7)
+  f1_n0_features = np.zeros(7)
+  f1_n1_features = np.zeros(7)
+  for i in range(2):
+    neighbor_0 = edge_properties[f'face_{i}']['neighbor_0']['vertices']
+    neighbor_0_vertex_0 = neighbor_0[0]
+    neighbor_0_vertex_1 = neighbor_0[1]
+    neighbor_0_length = np.linalg.norm(neighbor_0_vertex_0 - neighbor_0_vertex_1)
+    neighbor_0_features = [neighbor_0_vertex_0[0], neighbor_0_vertex_0[1], neighbor_0_vertex_0[2], neighbor_0_vertex_1[0], neighbor_0_vertex_1[1], neighbor_0_vertex_1[2], neighbor_0_length]
+    if i == 0: f0_n0_features = neighbor_0_features
+    elif i == 1: f1_n0_features = neighbor_0_features
+    
+    neighbor_1 = edge_properties[f'face_{i}']['neighbor_1']['vertices']
+    neighbor_1_vertex_0 = neighbor_1[0]
+    neighbor_1_vertex_1 = neighbor_1[1]
+    neighbor_1_length = np.linalg.norm(neighbor_1_vertex_0 - neighbor_1_vertex_1)
+    neighbor_1_features = [neighbor_1_vertex_0[0], neighbor_1_vertex_0[1], neighbor_1_vertex_0[2], neighbor_1_vertex_1[0], neighbor_1_vertex_1[1], neighbor_1_vertex_1[2], neighbor_1_length]
+    if i == 0: f0_n1_features = neighbor_1_features
+    elif i == 1: f1_n1_features = neighbor_1_features
+    
+  return np.array([edge_features, f0_n0_features, f0_n1_features, f1_n0_features, f1_n1_features])
+  
+  
+  
+def compute_edges_features(edges_properties, features_type):
+  if features_type == 'meshcnn_like_features':
+    edges_features = np.array([[d['dihaedral_angle'], d['inner_angle_1'], d['inner_angle_2'], d['length_height_ratio_1'], d['length_height_ratio_2']] for d in edges_properties])
+  elif features_type == 'simple_features':
+    edges_features = np.array([simple_features(d) for d in edges_properties])
+  elif features_type == 'simple_features_2d':
+    edges_features = np.zeros((1, 5, 7))
+    for edge_properties in edges_properties:
+      edge_features = simple_features_2d(edge_properties)
+      edge_features = np.expand_dims(edge_features, axis=0) 
+      edges_features = np.vstack((edges_features, edge_features))
+  
+  return edges_features    
+
+def compute_edges_properties(mesh):
   vertices = mesh.vertices
   faces = mesh.faces
 
@@ -125,25 +168,17 @@ def compute_edges_features(mesh):
       edge_properties[f"face_{i}"]['neighbor_0']['vertices'] = neighbor_edge_vertices_0
       edge_properties[f"face_{i}"]['neighbor_1']['edge'] = neighbor_edge_1
       edge_properties[f"face_{i}"]['neighbor_1']['vertices'] = neighbor_edge_vertices_1
-            
+      
     edges_properties.append(edge_properties)
+    
+  return edges_properties
 
-  #* Compute the features of the edges
-  edges_features = []
-  for edge_properties in edges_properties:
-          
-    #* Mesh-CNN-like features
-    edges_features.append(meshcnn_like_features(edge_properties))
-    
-    #* Simple features
-    #edges_features.append(simple_features(edge_properties))
-    
-  return np.array([[d['dihaedral_angle'], d['inner_angle_1'], d['inner_angle_2'], d['length_height_ratio_1'], d['length_height_ratio_2']] for d in edges_features])
 
 
 if __name__ == '__main__':  
   dataset_path = 'datasets/human/'
-  processed_data_path = 'datasets/meshcnn_edge_features/'
+  processed_data_path = 'datasets/simple_edge_features_2d/'
+  features_type = 'simple_features_2d'
 
   for subfolder in os.listdir(dataset_path):
     subfolder_path = os.path.join(dataset_path, subfolder)  
@@ -155,7 +190,8 @@ if __name__ == '__main__':
         if mesh_file.endswith('.obj'):
           mesh_path = os.path.join(subfolder_path, mesh_file)
           mesh = trimesh.load(mesh_path)
-          edges_features = compute_edges_features(mesh)
+          edges_properties = compute_edges_properties(mesh)
+          edges_features = compute_edges_features(edges_properties, features_type)
           edges_features_tensor = torch.tensor(edges_features)
           
           if not os.path.exists(os.path.join(processed_data_path, subfolder)):
