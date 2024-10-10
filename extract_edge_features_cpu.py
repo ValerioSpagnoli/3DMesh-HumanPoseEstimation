@@ -65,6 +65,7 @@ def meshcnn_like_features(edge_properties):
 
   return edge_features
 
+
 def simple_features(edge_properties):
   vertex_0 = edge_properties['vertices'][0]
   vertex_1 = edge_properties['vertices'][1]
@@ -177,8 +178,8 @@ def compute_edges_properties(mesh):
 
 if __name__ == '__main__':  
   dataset_path = 'datasets/human/'
-  processed_data_path = 'datasets/simple_edge_features_2d/'
-  features_type = 'simple_features_2d'
+  processed_data_path = 'datasets/simple_edge_features_2d/--'
+  features_type = 'meshcnn_like_features'
 
   for subfolder in os.listdir(dataset_path):
     subfolder_path = os.path.join(dataset_path, subfolder)  
