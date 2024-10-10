@@ -1,0 +1,82 @@
+import os
+import trimesh
+import torch
+from tqdm import tqdm
+
+def simple_features_2d(edge_properties, device):
+    # Convert vertices to tensors and calculate edge length only once
+    edge_vertex_0 = torch.tensor(edge_properties['vertices'][0], device=device)
+    edge_vertex_1 = torch.tensor(edge_properties['vertices'][1], device=device)
+    edge_length = torch.norm(edge_vertex_0 - edge_vertex_1)
+
+    edge_features = torch.cat([edge_vertex_0, edge_vertex_1, edge_length.unsqueeze(0)])
+
+    def extract_neighbor_features(neighbor):
+        v0 = torch.tensor(neighbor[0], device=device)
+        v1 = torch.tensor(neighbor[1], device=device)
+        length = torch.norm(v0 - v1)
+        return torch.cat([v0, v1, length.unsqueeze(0)])
+
+    # Pre-calculate neighbor features for both faces
+    f0_n0_features = extract_neighbor_features(edge_properties[f'face_0']['neighbor_0']['vertices'])
+    f0_n1_features = extract_neighbor_features(edge_properties[f'face_0']['neighbor_1']['vertices'])
+    f1_n0_features = extract_neighbor_features(edge_properties[f'face_1']['neighbor_0']['vertices'])
+    f1_n1_features = extract_neighbor_features(edge_properties[f'face_1']['neighbor_1']['vertices'])
+
+    return torch.stack([edge_features, f0_n0_features, f0_n1_features, f1_n0_features, f1_n1_features])
+
+def compute_edges_properties(mesh):
+    vertices = mesh.vertices
+    faces = mesh.faces
+
+    edge_to_faces = {}
+    for face in faces:
+        face_edges = [tuple(sorted((face[i], face[(i + 1) % 3]))) for i in range(3)]
+        for edge in face_edges:
+            edge_to_faces.setdefault(edge, []).append(face)
+
+    edges_properties = []
+    for edge, faces_containing_edge in edge_to_faces.items():
+        edge_properties = {
+            'edge': edge,
+            'vertices': [vertices[edge[0]], vertices[edge[1]]],
+            'face_0': {'vertices': [], 'neighbor_0': {'vertices': []}, 'neighbor_1': {'vertices': []}},
+            'face_1': {'vertices': [], 'neighbor_0': {'vertices': []}, 'neighbor_1': {'vertices': []}}
+        }
+
+        for i, face in enumerate(faces_containing_edge):
+            neighbors_edges = [tuple(sorted((face[j], face[(j + 1) % 3]))) for j in range(3) if tuple(sorted((face[j], face[(j + 1) % 3]))) != edge]
+            edge_properties[f'face_{i}']['vertices'] = [vertices[face[0]], vertices[face[1]], vertices[face[2]]]
+            edge_properties[f'face_{i}']['neighbor_0']['vertices'] = [vertices[neighbors_edges[0][0]], vertices[neighbors_edges[0][1]]]
+            edge_properties[f'face_{i}']['neighbor_1']['vertices'] = [vertices[neighbors_edges[1][0]], vertices[neighbors_edges[1][1]]]
+
+        edges_properties.append(edge_properties)
+    
+    return edges_properties
+
+if __name__ == '__main__':
+    dataset_path = 'datasets/human/'
+    processed_data_path = 'datasets/simple_edge_features_2d/'
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    for subfolder in os.listdir(dataset_path):
+        subfolder_path = os.path.join(dataset_path, subfolder)
+        if os.path.isdir(subfolder_path):
+            print(f"Processing subfolder {subfolder} ...")
+            mesh_files = [f for f in os.listdir(subfolder_path) if f.endswith('.obj')]
+
+            for mesh_file in tqdm(mesh_files, desc=f'Processing meshes in {subfolder}'):
+                mesh_path = os.path.join(subfolder_path, mesh_file)
+                mesh = trimesh.load(mesh_path)
+                edges_properties = compute_edges_properties(mesh)
+
+                # Pre-allocate tensor for edge features to avoid cat
+                edges_features = torch.zeros((len(edges_properties), 5, 7), device=device)
+                for i, edge_properties in enumerate(edges_properties):
+                    edges_features[i] = simple_features_2d(edge_properties, device)
+                
+                subfolder_processed_path = os.path.join(processed_data_path, subfolder)
+                os.makedirs(subfolder_processed_path, exist_ok=True)
+
+                processed_data_file = os.path.join(subfolder_processed_path, f"edges_features_{mesh_file.split('.')[0]}.pt")
+                torch.save(edges_features, processed_data_file)
