@@ -177,8 +177,8 @@ def compute_edges_properties(mesh):
 
 if __name__ == '__main__':
     features_type = 'simple_edge_features_2d'
-    dataset_path = 'datasets/human/'
-    processed_data_path = f'datasets/{features_type}/'
+    dataset_path = 'datasets/human_seg/'
+    processed_data_path = f'datasets/human_seg/preprocessed_train/'
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     for subfolder in os.listdir(dataset_path):
