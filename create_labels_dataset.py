@@ -131,20 +131,20 @@ def find_connected_components(useful_pairs):
 
 def save_keypoints_to_file(name, keypoints, classes):
     df = pd.DataFrame(keypoints, columns=['x', 'y', 'z'])
-    df['class'] = classes
+    if classes is not None: df['class'] = classes
     df.to_csv(name, index=False)
     
     
 
 
 if __name__ == "__main__":
-  root_dir = 'datasets/human_seg'
-  split = 'train'
-  train_path = os.path.join(root_dir, 'train')
-  seg_path = os.path.join(root_dir, 'seg_train')
-  output_keypoints_path = os.path.join(root_dir, 'keypoints_train')
+  root_dir = 'datasets/human_seg_complete'
+  split = 'test'
+  mesh_path = os.path.join(root_dir, f'mesh')
+  seg_path = os.path.join(root_dir, f'seg')
+  output_keypoints_path = os.path.join(root_dir, f'keypoint')
 
-  mesh_files = [f for f in os.listdir(train_path) if f.endswith('.obj')]
+  mesh_files = [f for f in os.listdir(mesh_path) if f.endswith('.obj')]
   seg_files = [f for f in os.listdir(seg_path) if f.endswith('.eseg')]
   mesh_files.sort()
   seg_files.sort()
@@ -154,7 +154,7 @@ if __name__ == "__main__":
   count_num_keypoints = {}
   for mesh_file, seg_file in pair_list:
 
-    edge_label_pairs = create_labels_for_mesh(train_path, seg_path, mesh_file, seg_file)
+    edge_label_pairs = create_labels_for_mesh(mesh_path, seg_path, mesh_file, seg_file)
     useful_vertices_dict = create_useful_vertices_dict(edge_label_pairs)
     useful_pairs = [elem for elem in edge_label_pairs if elem[0][0] in useful_vertices_dict and elem[0][1] in useful_vertices_dict]    
     connected_components = find_connected_components(useful_pairs)
@@ -179,7 +179,7 @@ if __name__ == "__main__":
             break
       
     # keypoint extraction
-    mesh = trimesh.load_mesh(os.path.join(train_path, mesh_file))
+    mesh = trimesh.load_mesh(os.path.join(mesh_path, mesh_file))
     vertices = mesh.vertices
     connected_components_vertices = []
     for connected_component in connected_components:
@@ -203,16 +203,16 @@ if __name__ == "__main__":
     
     if len(keypoints) == 12:
       keypoints_path = os.path.join(output_keypoints_path, mesh_file[:-4] + '.csv')
-      classes = []
-      for key, value in connected_components_classes.items():
-        if len(value) != 2: continue
-        classes.append(mapping_class_name[str(value)])
-      
-      if len(classes) == 12: save_keypoints_to_file(keypoints_path, keypoints, classes)
-      else: os.rename(os.path.join(train_path, mesh_file), os.path.join(root_dir, 'test', mesh_file))
+      # classes = []
+      # for key, value in connected_components_classes.items():
+      #   if len(value) != 2: continue
+      #   classes.append(mapping_class_name[str(value)])      
+      # if len(classes) == 12: save_keypoints_to_file(keypoints_path, keypoints, classes)
+      # else: os.rename(os.path.join(mesh_path, mesh_file), os.path.join(root_dir, 'test', mesh_file))
+      save_keypoints_to_file(keypoints_path, keypoints, None)
     
     else:
-      os.rename(os.path.join(train_path, mesh_file), os.path.join(root_dir, 'test', mesh_file))
+      os.rename(os.path.join(mesh_path, mesh_file), os.path.join(root_dir, 'other_mesh', mesh_file))
       
     count_num_keypoints[len(keypoints)] = count_num_keypoints.get(len(keypoints), 0) + 1
   

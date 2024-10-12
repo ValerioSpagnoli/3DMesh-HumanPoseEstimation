@@ -75,30 +75,26 @@ def compute_edges_properties(mesh):
     
     return edges_properties
 
-def extract_edge_features(mesh, normalize=True, device='cpu'):    
-    if normalize:
-        centroid = mesh.centroid 
-        scale = mesh.scale   
-        mesh.vertices -= centroid
-        mesh.vertices /= scale
-    
+def extract_edge_features(mesh, device='cpu'):        
     edges_properties = compute_edges_properties(mesh)
     edges_features = batch_edge_features(edges_properties, device)
     
     return edges_features
     
-if __name__ == '__main__':
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# if __name__ == '__main__':
+#     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    split = 'test'
-    features_type = 'simple_edge_features_2d'
-    dataset_path = f'datasets/human_seg/mesh_{split}/'
-    processed_data_path = f'datasets/human_seg/edge_features_{split}/'
-    mesh_files = [f for f in os.listdir(dataset_path) if f.endswith('.obj')]
+#     split = 'test'
+#     features_type = 'simple_edge_features_2d'
+#     dataset_path = f'datasets/human_seg/mesh_{split}/'
+#     processed_data_path = f'datasets/human_seg/edge_features_{split}/'
+#     mesh_files = [f for f in os.listdir(dataset_path) if f.endswith('.obj')]
 
-    for mesh_file in tqdm(mesh_files, desc=f'Processing meshes in {split}'):
-        mesh_path = os.path.join(dataset_path, mesh_file)
-        mesh = trimesh.load(mesh_path)
-        edges_features = extract_edge_features(mesh, normalize=True, device=device)
-        processed_data_file = os.path.join(processed_data_path, f"{mesh_file.split('.')[0]}.pt")
-        torch.save(edges_features, processed_data_file)
+#     for mesh_file in tqdm(mesh_files, desc=f'Processing meshes in {split}'):
+#         mesh_path = os.path.join(dataset_path, mesh_file)
+#         mesh = trimesh.load(mesh_path)
+#         centroid = mesh.centroid
+#         mesh.vertices -= centroid
+#         edges_features = extract_edge_features(mesh, device=device)
+#         processed_data_file = os.path.join(processed_data_path, f"{mesh_file.split('.')[0]}.pt")
+#         torch.save(edges_features, processed_data_file)
