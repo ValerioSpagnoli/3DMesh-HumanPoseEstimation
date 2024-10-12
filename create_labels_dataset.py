@@ -7,7 +7,6 @@ from collections import defaultdict
 import plotly.graph_objects as go
 import trimesh
 
-# Find EDGES starting from the faces of the mesh
 def get_edge_faces(faces):
     edge_count = 0
     edge_faces = []
@@ -34,20 +33,20 @@ def create_labels_for_mesh(train_path, seg_path, mesh_file, seg_file):
     return edge_label_pair
 
 def create_useful_vertices_dict(lati):
-    dizionario_vertici = {}
+    vertices_dict = {}
 
-    for (vertice1, vertice2), classe in lati:
-        if vertice1 not in dizionario_vertici:
-            dizionario_vertici[vertice1] = set(classe)
+    for (vertex1, vertex2), cls in lati:
+        if vertex1 not in vertices_dict:
+            vertices_dict[vertex1] = set(cls)
         else:
-            dizionario_vertici[vertice1].add(classe)
-        if vertice2 not in dizionario_vertici:
-            dizionario_vertici[vertice2] = set(classe)
+            vertices_dict[vertex1].add(cls)
+        if vertex2 not in vertices_dict:
+            vertices_dict[vertex2] = set(cls)
         else:
-            dizionario_vertici[vertice2].add(classe)
+            vertices_dict[vertex2].add(cls)
 
     final_dict = {}
-    for key, value in dizionario_vertici.items():
+    for key, value in vertices_dict.items():
         if len(value) > 1:
             final_dict[key] = value
     return final_dict
@@ -92,63 +91,27 @@ def find_connected_components(useful_pairs):
 
     return connected_components
 
+
+
 if __name__ == "__main__":
-  # root_dir = 'datasets/human_seg'
-  # train_path = os.path.join(root_dir, 'train')
-  # seg_path = os.path.join(root_dir, 'seg_train')
-
-  # mesh_files = [f for f in os.listdir(train_path) if f.endswith('.obj')]
-  # mesh_files.sort()
-  # seg_files = [f for f in os.listdir(seg_path) if f.endswith('.eseg')]
-  # seg_files.sort()
-  # pair_list = list(zip(mesh_files, seg_files))
-  
-  # z = 0
-  # for mesh_file, seg_file in pair_list:
-    
-  #   edge_label_pairs = create_labels_for_mesh(mesh_file, seg_file)
-  #   useful_vertices_dict = create_useful_vertices_dict(edge_label_pairs)
-  #   useful_pairs = [elem for elem in edge_label_pairs if elem[0][0] in useful_vertices_dict or elem[0][1] in useful_vertices_dict]
-  #   connected_components = find_connected_components(useful_pairs)
-
   root_dir = 'datasets/human_seg'
   train_path = os.path.join(root_dir, 'train')
   seg_path = os.path.join(root_dir, 'seg_train')
 
   mesh_files = [f for f in os.listdir(train_path) if f.endswith('.obj')]
-  mesh_files.sort()
   seg_files = [f for f in os.listdir(seg_path) if f.endswith('.eseg')]
+  mesh_files.sort()
   seg_files.sort()
   pair_list = list(zip(mesh_files, seg_files))
 
+  i=0
   count_num_keypoints = {}
-  i = 0
   for mesh_file, seg_file in pair_list:
 
     edge_label_pairs = create_labels_for_mesh(train_path, seg_path, mesh_file, seg_file)
-    all_labels = set()
-    for edge_label_pair in edge_label_pairs:
-      all_labels.add(edge_label_pair[1])
-
     useful_vertices_dict = create_useful_vertices_dict(edge_label_pairs)
-
-    # useful_pairs = [elem for elem in edge_label_pairs if elem[0][0] in useful_vertices_dict or elem[0][1] in useful_vertices_dict]
-    useful_pairs = []
-    for elem in edge_label_pairs:
-      if elem[0][0] in useful_vertices_dict and elem[0][1] in useful_vertices_dict:
-        useful_pairs.append(elem)
-    
+    useful_pairs = [elem for elem in edge_label_pairs if elem[0][0] in useful_vertices_dict and elem[0][1] in useful_vertices_dict]    
     connected_components = find_connected_components(useful_pairs)
-
-    # using useful vertices dict compute all the classes of a single connected component
-    connected_components_classes = []
-    for connected_component in connected_components:
-      connected_component_classes = set()
-      for vertex in connected_component:
-        connected_component_classes = connected_component_classes.union(useful_vertices_dict[vertex])
-      connected_components_classes.append(connected_component_classes)
-
-    
 
     # keypoint extraction
     mesh = trimesh.load_mesh(os.path.join(train_path, mesh_file))
@@ -162,7 +125,6 @@ if __name__ == "__main__":
 
     keypoints = []
     for connected_component_vertices in connected_components_vertices:
-      # compute the mean of the connected component
       mean = [0, 0, 0]
       for vertex in connected_component_vertices:
         mean[0] += vertex[0]
@@ -173,91 +135,45 @@ if __name__ == "__main__":
       mean[2] /= len(connected_component_vertices)
       keypoints.append(mean)
 
-    print(len(keypoints))
     count_num_keypoints[len(keypoints)] = count_num_keypoints.get(len(keypoints), 0) + 1
   
-
-    useful_vertices_coordinates = []
-    for vertex in useful_vertices_dict:
-      useful_vertices_coordinates.append(vertices[vertex])
-
-    
-
+    #* Plot
     fig = go.Figure()
+    fig.update_layout(scene=dict(aspectmode='data'))
+    colors = ['red', 'green', 'blue', 'yellow', 'purple', 'orange', 'pink', 'cyan', 'magenta', 'brown', 'grey', 'black', 'white', 'silver']
 
-    # Add the mesh data
-    fig.add_trace(go.Mesh3d(
-        x=vertices[:, 0], 
-        y=vertices[:, 1], 
-        z=vertices[:, 2], 
-        i=mesh.faces[:, 0], 
-        j=mesh.faces[:, 1], 
-        k=mesh.faces[:, 2], 
-        opacity=0.5
-    ))
+    # Plot the mesh
+    fig.add_trace(go.Mesh3d(x=vertices[:, 0], y=vertices[:, 1],  z=vertices[:, 2], i=mesh.faces[:, 0], j=mesh.faces[:, 1], k=mesh.faces[:, 2], opacity=0.5))
 
-
+    # Plot keypoints
     for keypoint in keypoints:
-        fig.add_trace(go.Scatter3d(
-            x=[keypoint[0]], 
-            y=[keypoint[1]], 
-            z=[keypoint[2]], 
-            mode='markers', 
-            marker=dict(size=5)
-        ))
+        fig.add_trace(go.Scatter3d(x=[keypoint[0]], y=[keypoint[1]], z=[keypoint[2]], mode='markers', marker=dict(size=5)))
 
-    # #plot the useful vertices
-    # # for useful_vertex in useful_vertices_coordinates:
-    # #     fig.add_trace(go.Scatter3d(
-    # #         x=[useful_vertex[0]], 
-    # #         y=[useful_vertex[1]], 
-    # #         z=[useful_vertex[2]], 
-    # #         mode='markers', 
-    # #         marker=dict(size=3)
-    # #     ))
+    # Plot useful vertices
+    useful_vertices_coordinates = [vertices[vertex] for vertex in useful_vertices_dict]
+    for useful_vertex in useful_vertices_coordinates:
+        fig.add_trace(go.Scatter3d(x=[useful_vertex[0]], y=[useful_vertex[1]], z=[useful_vertex[2]], mode='markers', marker=dict(size=3)))
 
-    # # plot connected components vertices with different colors (same color for the same connected component)
-    colors = ['red', 'green', 'blue', 'yellow', 'purple', 'orange', 'pink', 'cyan', 'magenta', 'brown']
-    # # for i, connected_component_vertices in enumerate(connected_components_vertices):
-    # #   x = []
-    # #   y = []
-    # #   z = []
-    # #   for vertex in connected_component_vertices:
-    # #     x.append(vertex[0])
-    # #     y.append(vertex[1])
-    # #     z.append(vertex[2])
-    # #   fig.add_trace(go.Scatter3d(
-    # #       x=x, 
-    # #       y=y, 
-    # #       z=z, 
-    # #       mode='markers', 
-    # #       marker=dict(size=3, color=colors[i])
-    # #   ))
+    # Plot connected components
+    for i, connected_component_vertices in enumerate(connected_components_vertices):
+      x = [vertex[0] for vertex in connected_component_vertices]
+      y = [vertex[1] for vertex in connected_component_vertices]
+      z = [vertex[2] for vertex in connected_component_vertices]
+      fig.add_trace(go.Scatter3d(x=x, y=y, z=z, mode='markers', marker=dict(size=3, color=colors[i])))
 
-    # # plot useful_pairs edges using one color for each class
+    # Plot useful_pairs edges
     for pair in useful_pairs:
       edge = pair[0]
       cls = pair[1]
       v0 = vertices[edge[0]]
       v1 = vertices[edge[1]]
-      fig.add_trace(go.Scatter3d(
-          x=[v0[0], v1[0]], 
-          y=[v0[1], v1[1]], 
-          z=[v0[2], v1[2]], 
-          mode='lines', 
-          line=dict(width=2, color=colors[int(cls)])
-      ))
+      fig.add_trace(go.Scatter3d(x=[v0[0], v1[0]], y=[v0[1], v1[1]], z=[v0[2], v1[2]], mode='lines', line=dict(width=2, color=colors[int(cls)])))
 
-
-    # # Set the aspect ratio to ensure correct proportions
-    fig.update_layout(
-        scene=dict(
-            aspectmode='data'
-        )
-    )
-
-    # Show the plot
-    if len(keypoints) == 11:
+    # Show  
+    if len(keypoints) == 13:
+      i+=1
       fig.show()
+    if i == 5: assert(False)
+    print(i)
 
   print(count_num_keypoints)
