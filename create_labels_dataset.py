@@ -7,6 +7,26 @@ from collections import defaultdict
 import plotly.graph_objects as go
 import trimesh
 
+
+# classes: 
+# 7 8 -> caviglia
+# 6 7 -> ginocchio
+# 5 6 -> anche
+# 4 5 -> spalle
+# 3 4 -> gomiti
+# 2 3 -> polsi
+# 1 5 -> collo
+
+# 1 -> testa
+# 2 -> mani
+# 3 -> avambraccia
+# 4 -> braccia
+# 5 -> busto
+# 6 -> gambe
+# 7 -> tibie
+# 8 -> piedi
+
+
 def get_edge_faces(faces):
     edge_count = 0
     edge_faces = []
@@ -104,6 +124,7 @@ if __name__ == "__main__":
   seg_files.sort()
   pair_list = list(zip(mesh_files, seg_files))
 
+  m = 0
   count_num_keypoints = {}
   for mesh_file, seg_file in pair_list:
 
@@ -111,7 +132,26 @@ if __name__ == "__main__":
     useful_vertices_dict = create_useful_vertices_dict(edge_label_pairs)
     useful_pairs = [elem for elem in edge_label_pairs if elem[0][0] in useful_vertices_dict and elem[0][1] in useful_vertices_dict]    
     connected_components = find_connected_components(useful_pairs)
-
+    
+    connected_components_classes = {}
+    for i, connected_component in enumerate(connected_components):
+      classes = set()
+      for (v1, v2), cls in useful_pairs:
+        if v1 in connected_component and v2 in connected_component:
+          classes.add(cls)
+      connected_components_classes[i] = classes
+        
+    already_deleted = False
+    for i, connected_component in enumerate(connected_components):
+      if already_deleted: break
+      if connected_components_classes[i] == {'5', '6'}:
+        for j, connected_component2 in enumerate(connected_components):
+          if connected_components_classes[j] == {'5', '6'} and i != j:
+            connected_components[i] = connected_components[i].union(connected_components[j])
+            connected_components.pop(j)
+            already_deleted = True
+            break
+      
     # keypoint extraction
     mesh = trimesh.load_mesh(os.path.join(train_path, mesh_file))
     vertices = mesh.vertices
@@ -148,6 +188,15 @@ if __name__ == "__main__":
     for keypoint in keypoints:
         fig.add_trace(go.Scatter3d(x=[keypoint[0]], y=[keypoint[1]], z=[keypoint[2]], mode='markers', marker=dict(size=5)))
 
+    # Plot connected components of a specific class
+    cls = {'1', '5'}
+    for i, connected_component_vertices in enumerate(connected_components_vertices):
+      if connected_components_classes[i] == cls:
+        x = [vertex[0] for vertex in connected_component_vertices]
+        y = [vertex[1] for vertex in connected_component_vertices]
+        z = [vertex[2] for vertex in connected_component_vertices]
+        fig.add_trace(go.Scatter3d(x=x, y=y, z=z, mode='markers', marker=dict(size=3, color=colors[i])))
+    
     # Plot useful vertices
     useful_vertices_coordinates = [vertices[vertex] for vertex in useful_vertices_dict]
     for useful_vertex in useful_vertices_coordinates:
@@ -170,5 +219,6 @@ if __name__ == "__main__":
 
     # Show  
     # fig.show()
-      
+
+        
   print(count_num_keypoints)
