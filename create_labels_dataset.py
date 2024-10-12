@@ -6,6 +6,7 @@ import tqdm
 from collections import defaultdict
 import plotly.graph_objects as go
 import trimesh
+import pandas as pd
 
 
 # classes: 
@@ -26,6 +27,22 @@ import trimesh
 # 7 -> tibie
 # 8 -> piedi
 
+mapping_class_name = {
+  "{'7', '8'}": 'ankles',
+  "{'8', '7'}": 'ankles',
+  "{'6', '7'}": 'knees',
+  "{'7', '6'}": 'knees',
+  "{'5', '6'}": 'hips',
+  "{'6', '5'}": 'hips',
+  "{'4', '5'}": 'shoulders',
+  "{'5', '4'}": 'shoulders',
+  "{'3', '4'}": 'elbows',
+  "{'4', '3'}": 'elbows',
+  "{'2', '3'}": 'wrists',
+  "{'3', '2'}": 'wrists',
+  "{'1', '5'}": 'neck',
+  "{'5', '1'}": 'neck' 
+}
 
 def get_edge_faces(faces):
     edge_count = 0
@@ -112,11 +129,20 @@ def find_connected_components(useful_pairs):
     return connected_components
 
 
+def save_keypoints_to_file(name, keypoints, classes):
+    df = pd.DataFrame(keypoints, columns=['x', 'y', 'z'])
+    df['class'] = classes
+    df.to_csv(name, index=False)
+    
+    
+
 
 if __name__ == "__main__":
   root_dir = 'datasets/human_seg'
+  split = 'train'
   train_path = os.path.join(root_dir, 'train')
   seg_path = os.path.join(root_dir, 'seg_train')
+  output_keypoints_path = os.path.join(root_dir, 'keypoints_train')
 
   mesh_files = [f for f in os.listdir(train_path) if f.endswith('.obj')]
   seg_files = [f for f in os.listdir(seg_path) if f.endswith('.eseg')]
@@ -140,7 +166,7 @@ if __name__ == "__main__":
         if v1 in connected_component and v2 in connected_component:
           classes.add(cls)
       connected_components_classes[i] = classes
-        
+              
     already_deleted = False
     for i, connected_component in enumerate(connected_components):
       if already_deleted: break
@@ -174,6 +200,20 @@ if __name__ == "__main__":
       mean[2] /= len(connected_component_vertices)
       keypoints.append(mean)
 
+    
+    if len(keypoints) == 12:
+      keypoints_path = os.path.join(output_keypoints_path, mesh_file[:-4] + '.csv')
+      classes = []
+      for key, value in connected_components_classes.items():
+        if len(value) != 2: continue
+        classes.append(mapping_class_name[str(value)])
+      
+      if len(classes) == 12: save_keypoints_to_file(keypoints_path, keypoints, classes)
+      else: os.rename(os.path.join(train_path, mesh_file), os.path.join(root_dir, 'test', mesh_file))
+    
+    else:
+      os.rename(os.path.join(train_path, mesh_file), os.path.join(root_dir, 'test', mesh_file))
+      
     count_num_keypoints[len(keypoints)] = count_num_keypoints.get(len(keypoints), 0) + 1
   
     #* Plot

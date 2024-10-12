@@ -174,34 +174,40 @@ def compute_edges_properties(mesh):
     
     return edges_properties
 
-
+def extract_edge_features(mesh_path, normalize=True):
+    mesh = trimesh.load(mesh_path)
+    
+    if normalize:
+        centroid = mesh.centroid 
+        scale = mesh.scale   
+        mesh.vertices -= centroid
+        mesh.vertices /= scale
+    
+    edges_properties = compute_edges_properties(mesh)
+    edges_features = batch_simple_edge_features_2d(edges_properties, device)
+    
+    return edges_features
+    
 if __name__ == '__main__':
-    features_type = 'simple_edge_features_2d'
-    dataset_path = 'datasets/human_seg/'
-    processed_data_path = f'datasets/human_seg/preprocessed_train/'
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
+    split = 'test'
+    features_type = 'simple_edge_features_2d'
+    dataset_path = f'datasets/human_seg/mesh_{split}/'
+    processed_data_path = f'datasets/human_seg/edge_features_{split}/'
+    mesh_files = [f for f in os.listdir(dataset_path) if f.endswith('.obj')]
 
-    for subfolder in os.listdir(dataset_path):
-        subfolder_path = os.path.join(dataset_path, subfolder)
-        if os.path.isdir(subfolder_path):
-            print(f"Processing subfolder {subfolder} ...")
-            mesh_files = [f for f in os.listdir(subfolder_path) if f.endswith('.obj')]
+    for mesh_file in tqdm(mesh_files, desc=f'Processing meshes in {split}'):
+        mesh_path = os.path.join(dataset_path, mesh_file)
+        mesh = trimesh.load(mesh_path)
+        edges_properties = compute_edges_properties(mesh)
 
-            for mesh_file in tqdm(mesh_files, desc=f'Processing meshes in {subfolder}'):
-                mesh_path = os.path.join(subfolder_path, mesh_file)
-                mesh = trimesh.load(mesh_path)
-                edges_properties = compute_edges_properties(mesh)
-
-                # Use batch processing for edge features
-                if features_type == 'simple_edge_features':
-                    edges_features = batch_simple_edge_features(edges_properties, device)
-                elif features_type == 'simple_edge_features_2d':
-                  edges_features = batch_simple_edge_features_2d(edges_properties, device)
-                elif features_type == 'meshcnn_edge_features':
-                    edges_features = batch_meshcnn_edge_features(edges_properties, device)
-                
-                subfolder_processed_path = os.path.join(processed_data_path, subfolder)
-                os.makedirs(subfolder_processed_path, exist_ok=True)
-
-                processed_data_file = os.path.join(subfolder_processed_path, f"edges_features_{mesh_file.split('.')[0]}.pt")
-                torch.save(edges_features, processed_data_file)
+        if features_type == 'simple_edge_features':
+            edges_features = batch_simple_edge_features(edges_properties, device)
+        elif features_type == 'simple_edge_features_2d':
+            edges_features = batch_simple_edge_features_2d(edges_properties, device)
+        elif features_type == 'meshcnn_edge_features':
+            edges_features = batch_meshcnn_edge_features(edges_properties, device)
+        
+        processed_data_file = os.path.join(processed_data_path, f"{mesh_file.split('.')[0]}.pt")
+        torch.save(edges_features, processed_data_file)
