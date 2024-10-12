@@ -104,7 +104,6 @@ if __name__ == "__main__":
   seg_files.sort()
   pair_list = list(zip(mesh_files, seg_files))
 
-  i=0
   count_num_keypoints = {}
   for mesh_file, seg_file in pair_list:
 
@@ -170,10 +169,6 @@ if __name__ == "__main__":
       fig.add_trace(go.Scatter3d(x=[v0[0], v1[0]], y=[v0[1], v1[1]], z=[v0[2], v1[2]], mode='lines', line=dict(width=2, color=colors[int(cls)])))
 
     # Show  
-    if len(keypoints) == 13:
-      i+=1
-      fig.show()
-    if i == 5: assert(False)
-    print(i)
-
+    # fig.show()
+      
   print(count_num_keypoints)
