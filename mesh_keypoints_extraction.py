@@ -186,11 +186,31 @@ def hungarian_mpjpe(pred, target):
     mpjpe = total_error / (B * N)
     return mpjpe
 
+def hungarian_pck(pred, target, threshold=0.1):
+    B, N, _ = pred.size()
+
+    correct_keypoints = 0.0
+    total_keypoints = B * N
+
+    for b in range(B):
+        pred_b = pred[b].float() if pred.dtype == torch.float16 else pred[b]
+        target_b = target[b].float() if target.dtype == torch.float16 else target[b]
+        distance_matrix = torch.cdist(pred_b, target_b, p=2)
+        distance_matrix_np = distance_matrix.cpu().detach().numpy()
+        row_indices, col_indices = linear_sum_assignment(distance_matrix_np)
+        matched_distances = distance_matrix[row_indices, col_indices]
+        correct_keypoints += (matched_distances <= threshold).float().sum().item()
+        
+    pck_score = correct_keypoints / total_keypoints
+    return pck_score
+
+
 def test(keypoints_predictor, test_loader, criterion, device):
   keypoints_predictor.eval()
   
   test_loss = 0.0
   mpjpe = 0.0
+  pck = 0.0
   
   with torch.no_grad():
     for _, inputs, labels in tqdm(test_loader, desc=f"Testing"):
@@ -202,8 +222,37 @@ def test(keypoints_predictor, test_loader, criterion, device):
         
         test_loss += loss.item()
         mpjpe += hungarian_mpjpe(outputs, labels)
+        pck += hungarian_pck(outputs, labels)
   
   test_loss = test_loss/len(test_loader)
   mpjpe = mpjpe/len(test_loader)
-  print(f'Test Loss: {test_loss}')
-  print(f'MPJPE:     {mpjpe}')
+  pck = pck/len(test_loader)
+  
+  test_loss = round(float(test_loss), 4)
+  mpjpe = round(float(mpjpe), 4)
+  pck = round(float(pck), 4)
+  
+  print(f'Test results:')
+  print(f' - Test Loss: {test_loss}')
+  print(f' - MPJPE:     {mpjpe} [m]')
+  print(f' - PCK:       {pck*100} %')
+  
+
+def test_single_mesh(keypoints_predictor, edge_features, keypoints, criterion, device):
+  edge_features = edge_features.unsqueeze(0).to(torch.float32).to(device)
+  predicted_keypoints = keypoints_predictor(edge_features)
+
+  loss = criterion(predicted_keypoints, keypoints.unsqueeze(0).to(torch.float32).to(device))
+  mpjpe = hungarian_mpjpe(predicted_keypoints, keypoints.unsqueeze(0).to(torch.float32).to(device))
+  pck = hungarian_pck(predicted_keypoints, keypoints.unsqueeze(0).to(torch.float32).to(device))
+  
+  loss = round(float(loss), 4)
+  mpjpe = round(float(mpjpe), 4)
+  pck = round(float(pck), 4)
+  
+  print(f'Test results:')
+  print(f' - Test Loss: {loss}')
+  print(f' - MPJPE:     {mpjpe} [m]')
+  print(f' - PCK:       {pck*100} %')
+  
+  return predicted_keypoints.cpu().detach().numpy()[0]
