@@ -171,13 +171,13 @@ def train(keypoints_predictor, optimizer, criterion, scaler, scheduler, train_lo
   torch.save(keypoints_predictor.state_dict(), model_save_dir + 'keypoints_predictor.pth')
 
 
-def mpjpe_hungarian(pred, target):
+def hungarian_mpjpe(pred, target):
     B, N, _ = pred.size()
 
     total_error = 0.0
 
     for b in range(B):
-        distance_matrix = torch.cdist(pred[b], target[b], p=2)
+        distance_matrix = torch.cdist(pred[b].to(torch.float32), target[b].to(torch.float32), p=2)
         distance_matrix_np = distance_matrix.cpu().detach().numpy()
         row_indices, col_indices = linear_sum_assignment(distance_matrix_np)
         matched_distances = distance_matrix[row_indices, col_indices]
@@ -201,7 +201,7 @@ def test(keypoints_predictor, test_loader, criterion, device):
           loss = criterion(outputs, labels)
         
         test_loss += loss.item()
-        mpjpe += mpjpe_hungarian(outputs, labels)
+        mpjpe += hungarian_mpjpe(outputs, labels)
   
   test_loss = test_loss/len(test_loader)
   mpjpe = mpjpe/len(test_loader)
