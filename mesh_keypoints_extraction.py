@@ -10,8 +10,10 @@ from tqdm import tqdm
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from torch.amp import autocast, GradScaler
+from scipy.optimize import linear_sum_assignment
 
 torch.manual_seed(0)
 np.random.seed(0)
@@ -109,17 +111,44 @@ class KeypointPredictionNetwork(nn.Module):
     return keypoints
 
 
+class HungarianSumOfDistancesLoss(nn.Module):
+    def __init__(self):
+        super(HungarianSumOfDistancesLoss, self).__init__()
+
+    def forward(self, pred, target):
+        B, N, _ = pred.size()
+        total_distance = 0.0
+        for b in range(B):
+            distance_matrix = torch.cdist(pred[b], target[b], p=2)  # (N, N)
+            distance_matrix_np = distance_matrix.cpu().detach().numpy()
+            row_indices, col_indices = linear_sum_assignment(distance_matrix_np)
+            matched_distances = distance_matrix[row_indices, col_indices].sum()
+            total_distance += matched_distances
+
+        loss = total_distance / B
+        return loss
+
+class SumOfDistancesLoss(nn.Module):
+    def init(self):
+        super(SumOfDistancesLoss, self).init()
+    
+    def forward(self, pred, target):
+        distances = torch.sqrt(torch.sum((pred - target) ** 2, dim=2))
+        total_distances = torch.sum(distances, dim=1)
+        mean_distance = torch.mean(total_distances)
+
+        return mean_distance
+
 class ChamferLoss(nn.Module):
-  def __init__(self, device='cpu'):
+  def __init__(self):
     super(ChamferLoss, self).__init__()
-    self.device = device
 
   def forward(self, predicted_points, target_points):
     distance_predicted_to_target = torch.cdist(predicted_points, target_points)
     min_distance_predicted_to_target, _ = torch.min(distance_predicted_to_target, dim=2)
     min_distance_target_to_predicted, _ = torch.min(distance_predicted_to_target, dim=1)
     loss = torch.mean(min_distance_predicted_to_target) + torch.mean(min_distance_target_to_predicted)
-    return loss.to(self.device)
+    return loss
   
   
 def train(keypoints_predictor, optimizer, criterion, scaler, scheduler, train_loader, valid_loader, num_epochs, device, model_save_dir):
@@ -161,8 +190,8 @@ def train(keypoints_predictor, optimizer, criterion, scaler, scheduler, train_lo
     
     print(f' - Train Loss: {train_loss} - Valid Loss: {valid_loss} - Learning Rate: {scheduler.get_last_lr()[0]}')
     
-    if (epoch+1) % 10 == 0:
-      torch.save(keypoints_predictor.state_dict(), model_save_dir + f'checkpoints/keypoints_predictor_{epoch+1}.pth')
+    # if (epoch+1) % 10 == 0:
+    torch.save(keypoints_predictor.state_dict(), model_save_dir + f'checkpoints/keypoints_predictor_{epoch+1}.pth')
 
   torch.save(keypoints_predictor.state_dict(), model_save_dir + 'keypoints_predictor.pth')
   
@@ -179,61 +208,3 @@ def test(keypoints_predictor, test_loader, criterion, device):
         test_loss += loss.item()
   test_loss = test_loss/len(test_loader)
   print(f'Test Loss: {test_loss}')
-
-
-def test_single_mesh(keypoints_predictor, mesh, edge_features, keypoints=None, device='cpu'):
-  keypoints = keypoints.cpu().numpy()
-  predicted_keypoints = keypoints_predictor(edge_features.unsqueeze(0).to(torch.float32).to(device)).squeeze().cpu().detach().numpy()
-
-  fig = go.Figure()
-  fig.update_layout(scene=dict(aspectmode='data'))
-
-  fig.add_trace(go.Mesh3d(x=mesh.vertices[:, 0], y=mesh.vertices[:, 1], z=mesh.vertices[:, 2], i=mesh.faces[:, 0], j=mesh.faces[:, 1], k=mesh.faces[:, 2], color='lightgrey', opacity=0.5))
-
-  for i, keypoint in enumerate(predicted_keypoints):
-      fig.add_trace(go.Scatter3d(x=[keypoint[0]], y=[keypoint[1]], z=[keypoint[2]], mode='markers', marker=dict(size=5, color='blue')))
-  
-  if keypoints is not None:
-    for i, keypoint in enumerate(keypoints):
-        fig.add_trace(go.Scatter3d(x=[keypoint[0]], y=[keypoint[1]], z=[keypoint[2]], mode='markers', marker=dict(size=2, color='red'))) 
-        
-  fig.show()
-  
-
-if __name__ == '__main__':
-  device = torch.device("cuda" if torch.cuda.is_available() else "cpu") 
-
-  dataset_dir = 'datasets/mesh_keypoints_extraction'
-  meshes_dir = os.path.join(dataset_dir, 'meshes')
-  keypoints_dir = os.path.join(dataset_dir, 'keypoints')
-  model_save_dir = 'models/'
-
-  num_edges = 750
-  input_channels = 5
-  num_keypoints = 12
-
-  batch_size = 32
-  learning_rate = 0.001
-  num_epochs = 150
-  
-  dataset = MeshData(meshes_dir, keypoints_dir, device=device, num_edges=num_edges, normalize=True)
-  train_set_size = int(0.8 * len(dataset))
-  val_set_size = int(0.1 * len(dataset))
-  test_set_size = len(dataset) - train_set_size - val_set_size
-  train_set, val_set, test_set = torch.utils.data.random_split(dataset, [train_set_size, val_set_size, test_set_size])
-
-  train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True, collate_fn=custom_collate_fn)
-  valid_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False, collate_fn=custom_collate_fn)
-  test_loader = DataLoader(test_set, batch_size=batch_size, shuffle=False, collate_fn=custom_collate_fn)
-  
-  keypoints_predictor = KeypointPredictionNetwork(input_channels=input_channels, num_keypoints=num_keypoints).to(device)
-  optimizer = optim.Adam(keypoints_predictor.parameters(), lr=learning_rate)
-  criterion = ChamferLoss(device=device)
-  scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.2, patience=3)
-  scaler = GradScaler()
-
-  train(keypoints_predictor, optimizer, criterion, scaler, scheduler, train_loader, valid_loader, num_epochs, device, model_save_dir)
-  
-  keypoints_predictor_test = KeypointPredictionNetwork(input_channels=input_channels, num_keypoints=num_keypoints).to(device)
-  keypoints_predictor_test.load_state_dict(torch.load(model_save_dir + 'keypoints_predictor.pth'))
-  test(keypoints_predictor_test, test_loader, device)
