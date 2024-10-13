@@ -1,4 +1,5 @@
 weights/checkpoints
+datasets/human_seg_complete
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

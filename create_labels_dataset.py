@@ -139,10 +139,9 @@ def save_keypoints_to_file(name, keypoints, classes):
 
 if __name__ == "__main__":
   root_dir = 'datasets/human_seg_complete'
-  split = 'test'
-  mesh_path = os.path.join(root_dir, f'mesh')
+  mesh_path = os.path.join(root_dir, f'meshes')
   seg_path = os.path.join(root_dir, f'seg')
-  output_keypoints_path = os.path.join(root_dir, f'keypoint')
+  output_keypoints_path = os.path.join(root_dir, f'keypoints')
 
   mesh_files = [f for f in os.listdir(mesh_path) if f.endswith('.obj')]
   seg_files = [f for f in os.listdir(seg_path) if f.endswith('.eseg')]
@@ -201,18 +200,11 @@ if __name__ == "__main__":
       keypoints.append(mean)
 
     
-    if len(keypoints) == 12:
-      keypoints_path = os.path.join(output_keypoints_path, mesh_file[:-4] + '.csv')
-      # classes = []
-      # for key, value in connected_components_classes.items():
-      #   if len(value) != 2: continue
-      #   classes.append(mapping_class_name[str(value)])      
-      # if len(classes) == 12: save_keypoints_to_file(keypoints_path, keypoints, classes)
-      # else: os.rename(os.path.join(mesh_path, mesh_file), os.path.join(root_dir, 'test', mesh_file))
-      save_keypoints_to_file(keypoints_path, keypoints, None)
-    
-    else:
-      os.rename(os.path.join(mesh_path, mesh_file), os.path.join(root_dir, 'other_mesh', mesh_file))
+    # if len(keypoints) == 12:
+    #   keypoints_path = os.path.join(output_keypoints_path, mesh_file[:-4] + '.csv')
+    #   save_keypoints_to_file(keypoints_path, keypoints, None)
+    # else:
+    #   os.rename(os.path.join(mesh_path, mesh_file), os.path.join(root_dir, 'other_mesh', mesh_file))
       
     count_num_keypoints[len(keypoints)] = count_num_keypoints.get(len(keypoints), 0) + 1
   
@@ -222,43 +214,45 @@ if __name__ == "__main__":
     colors = ['red', 'green', 'blue', 'yellow', 'purple', 'orange', 'pink', 'cyan', 'magenta', 'brown', 'grey', 'black', 'white', 'silver']
 
     # Plot the mesh
-    fig.add_trace(go.Mesh3d(x=vertices[:, 0], y=vertices[:, 1],  z=vertices[:, 2], i=mesh.faces[:, 0], j=mesh.faces[:, 1], k=mesh.faces[:, 2], opacity=0.5))
+    fig.add_trace(go.Mesh3d(x=vertices[:, 0], y=vertices[:, 1],  z=vertices[:, 2], i=mesh.faces[:, 0], j=mesh.faces[:, 1], k=mesh.faces[:, 2], color='lightgrey', opacity=0.5))
 
     # Plot keypoints
     for keypoint in keypoints:
-        fig.add_trace(go.Scatter3d(x=[keypoint[0]], y=[keypoint[1]], z=[keypoint[2]], mode='markers', marker=dict(size=5)))
+        fig.add_trace(go.Scatter3d(x=[keypoint[0]], y=[keypoint[1]], z=[keypoint[2]], mode='markers', marker=dict(size=3, color='green')))
 
     # Plot connected components of a specific class
-    cls = {'1', '5'}
-    for i, connected_component_vertices in enumerate(connected_components_vertices):
-      if connected_components_classes[i] == cls:
-        x = [vertex[0] for vertex in connected_component_vertices]
-        y = [vertex[1] for vertex in connected_component_vertices]
-        z = [vertex[2] for vertex in connected_component_vertices]
-        fig.add_trace(go.Scatter3d(x=x, y=y, z=z, mode='markers', marker=dict(size=3, color=colors[i])))
+    # cls = {'1', '5'}
+    # for i, connected_component_vertices in enumerate(connected_components_vertices):
+    #   if connected_components_classes[i] == cls:
+    #     x = [vertex[0] for vertex in connected_component_vertices]
+    #     y = [vertex[1] for vertex in connected_component_vertices]
+    #     z = [vertex[2] for vertex in connected_component_vertices]
+    #     fig.add_trace(go.Scatter3d(x=x, y=y, z=z, mode='markers', marker=dict(size=3, color=colors[i])))
     
     # Plot useful vertices
-    useful_vertices_coordinates = [vertices[vertex] for vertex in useful_vertices_dict]
-    for useful_vertex in useful_vertices_coordinates:
-        fig.add_trace(go.Scatter3d(x=[useful_vertex[0]], y=[useful_vertex[1]], z=[useful_vertex[2]], mode='markers', marker=dict(size=3)))
+    # useful_vertices_coordinates = [vertices[vertex] for vertex in useful_vertices_dict]
+    # for useful_vertex in useful_vertices_coordinates:
+    #     fig.add_trace(go.Scatter3d(x=[useful_vertex[0]], y=[useful_vertex[1]], z=[useful_vertex[2]], mode='markers', marker=dict(size=3)))
 
     # Plot connected components
-    for i, connected_component_vertices in enumerate(connected_components_vertices):
-      x = [vertex[0] for vertex in connected_component_vertices]
-      y = [vertex[1] for vertex in connected_component_vertices]
-      z = [vertex[2] for vertex in connected_component_vertices]
-      fig.add_trace(go.Scatter3d(x=x, y=y, z=z, mode='markers', marker=dict(size=3, color=colors[i])))
+    # for i, connected_component_vertices in enumerate(connected_components_vertices):
+    #   x = [vertex[0] for vertex in connected_component_vertices]
+    #   y = [vertex[1] for vertex in connected_component_vertices]
+    #   z = [vertex[2] for vertex in connected_component_vertices]
+    #   fig.add_trace(go.Scatter3d(x=x, y=y, z=z, mode='markers', marker=dict(size=3, color=colors[i])))
 
     # Plot useful_pairs edges
-    for pair in useful_pairs:
-      edge = pair[0]
-      cls = pair[1]
-      v0 = vertices[edge[0]]
-      v1 = vertices[edge[1]]
-      fig.add_trace(go.Scatter3d(x=[v0[0], v1[0]], y=[v0[1], v1[1]], z=[v0[2], v1[2]], mode='lines', line=dict(width=2, color=colors[int(cls)])))
+    # for pair in useful_pairs:
+    #   edge = pair[0]
+    #   cls = pair[1]
+    #   v0 = vertices[edge[0]]
+    #   v1 = vertices[edge[1]]
+    #   fig.add_trace(go.Scatter3d(x=[v0[0], v1[0]], y=[v0[1], v1[1]], z=[v0[2], v1[2]], mode='lines', line=dict(width=2, color=colors[int(cls)])))
 
-    # Show  
-    # fig.show()
-
+    # Show  0, 20 
+    if m==0:  
+      fig.show()
+      break
+    m += 1
         
   print(count_num_keypoints)
