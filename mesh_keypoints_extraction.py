@@ -87,8 +87,8 @@ class KeypointPredictionNetwork(nn.Module):
 
     self.pool = nn.AdaptiveMaxPool2d((1, 1))
     
-    self.fc_phi = nn.Linear(256, 128) 
-    self.fc_rho = nn.Linear(128, num_keypoints * 3)
+    self.fc1 = nn.Linear(256, 128) 
+    self.fc2 = nn.Linear(128, num_keypoints * 3)
       
   def forward(self, x):
     x = x.permute(0, 1, 3, 2)
@@ -101,8 +101,8 @@ class KeypointPredictionNetwork(nn.Module):
     x = self.pool(x)
     x = x.view(x.size(0), -1)
     
-    x = torch.relu(self.fc_phi(x))
-    x = self.fc_rho(x)
+    x = torch.relu(self.fc1(x))
+    x = self.fc2(x)
     
     keypoints = x.view(x.size(0), -1, 3)
     return keypoints
