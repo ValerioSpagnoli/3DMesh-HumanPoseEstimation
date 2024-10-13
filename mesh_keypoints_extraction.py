@@ -4,15 +4,12 @@ import os
 import pandas as pd
 import numpy as np
 import trimesh
-import plotly.graph_objects as go
 from tqdm import tqdm
 
 import torch
 import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
-from torch.utils.data import Dataset, DataLoader
-from torch.amp import autocast, GradScaler
+from torch.utils.data import Dataset
+from torch.amp import autocast
 from scipy.optimize import linear_sum_assignment
 
 torch.manual_seed(0)
@@ -128,29 +125,7 @@ class HungarianSumOfDistancesLoss(nn.Module):
         loss = total_distance / B
         return loss
 
-class SumOfDistancesLoss(nn.Module):
-    def init(self):
-        super(SumOfDistancesLoss, self).init()
-    
-    def forward(self, pred, target):
-        distances = torch.sqrt(torch.sum((pred - target) ** 2, dim=2))
-        total_distances = torch.sum(distances, dim=1)
-        mean_distance = torch.mean(total_distances)
 
-        return mean_distance
-
-class ChamferLoss(nn.Module):
-  def __init__(self):
-    super(ChamferLoss, self).__init__()
-
-  def forward(self, predicted_points, target_points):
-    distance_predicted_to_target = torch.cdist(predicted_points, target_points)
-    min_distance_predicted_to_target, _ = torch.min(distance_predicted_to_target, dim=2)
-    min_distance_target_to_predicted, _ = torch.min(distance_predicted_to_target, dim=1)
-    loss = torch.mean(min_distance_predicted_to_target) + torch.mean(min_distance_target_to_predicted)
-    return loss
-  
-  
 def train(keypoints_predictor, optimizer, criterion, scaler, scheduler, train_loader, valid_loader, num_epochs, device, model_save_dir):
   for epoch in range(num_epochs):
     keypoints_predictor.train()
@@ -194,17 +169,41 @@ def train(keypoints_predictor, optimizer, criterion, scaler, scheduler, train_lo
     torch.save(keypoints_predictor.state_dict(), model_save_dir + f'checkpoints/keypoints_predictor_{epoch+1}.pth')
 
   torch.save(keypoints_predictor.state_dict(), model_save_dir + 'keypoints_predictor.pth')
-  
+
+
+def mpjpe_hungarian(pred, target):
+    B, N, _ = pred.size()
+
+    total_error = 0.0
+
+    for b in range(B):
+        distance_matrix = torch.cdist(pred[b], target[b], p=2)
+        distance_matrix_np = distance_matrix.cpu().detach().numpy()
+        row_indices, col_indices = linear_sum_assignment(distance_matrix_np)
+        matched_distances = distance_matrix[row_indices, col_indices]
+        total_error += matched_distances.sum()
+
+    mpjpe = total_error / (B * N)
+    return mpjpe
 
 def test(keypoints_predictor, test_loader, criterion, device):
   keypoints_predictor.eval()
+  
   test_loss = 0.0
+  mpjpe = 0.0
+  
   with torch.no_grad():
     for _, inputs, labels in tqdm(test_loader, desc=f"Testing"):
         inputs, labels = inputs.to(torch.float32).to(device), labels.to(torch.float32).to(device)
+        
         with autocast(device_type='cuda'):
           outputs = keypoints_predictor(inputs)
           loss = criterion(outputs, labels)
+        
         test_loss += loss.item()
+        mpjpe += mpjpe_hungarian(outputs, labels)
+  
   test_loss = test_loss/len(test_loader)
+  mpjpe = mpjpe/len(test_loader)
   print(f'Test Loss: {test_loss}')
+  print(f'MPJPE:     {mpjpe}')

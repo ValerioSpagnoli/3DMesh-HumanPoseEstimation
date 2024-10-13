@@ -1,7 +1,5 @@
-import os
-import trimesh
 import torch
-from tqdm import tqdm
+
 
 def batch_edge_features(edges_properties, device):
     num_edges = len(edges_properties)
