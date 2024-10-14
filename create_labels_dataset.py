@@ -138,7 +138,7 @@ def save_keypoints_to_file(name, keypoints, classes):
 
 
 if __name__ == "__main__":
-  root_dir = 'datasets/human_seg_complete'
+  root_dir = 'datasets/human_body_segmentation'
   mesh_path = os.path.join(root_dir, f'meshes')
   seg_path = os.path.join(root_dir, f'seg')
   output_keypoints_path = os.path.join(root_dir, f'keypoints')
@@ -219,6 +219,7 @@ if __name__ == "__main__":
     # Plot keypoints
     for keypoint in keypoints:
         fig.add_trace(go.Scatter3d(x=[keypoint[0]], y=[keypoint[1]], z=[keypoint[2]], mode='markers', marker=dict(size=3, color='green')))
+        pass
 
     # Plot connected components of a specific class
     # cls = {'1', '5'}
@@ -230,26 +231,29 @@ if __name__ == "__main__":
     #     fig.add_trace(go.Scatter3d(x=x, y=y, z=z, mode='markers', marker=dict(size=3, color=colors[i])))
     
     # Plot useful vertices
-    # useful_vertices_coordinates = [vertices[vertex] for vertex in useful_vertices_dict]
-    # for useful_vertex in useful_vertices_coordinates:
-    #     fig.add_trace(go.Scatter3d(x=[useful_vertex[0]], y=[useful_vertex[1]], z=[useful_vertex[2]], mode='markers', marker=dict(size=3)))
+    useful_vertices_coordinates = [vertices[vertex] for vertex in useful_vertices_dict]
+    for useful_vertex in useful_vertices_coordinates:
+        #fig.add_trace(go.Scatter3d(x=[useful_vertex[0]], y=[useful_vertex[1]], z=[useful_vertex[2]], mode='markers', marker=dict(size=3)))
+        pass
 
     # Plot connected components
-    # for i, connected_component_vertices in enumerate(connected_components_vertices):
-    #   x = [vertex[0] for vertex in connected_component_vertices]
-    #   y = [vertex[1] for vertex in connected_component_vertices]
-    #   z = [vertex[2] for vertex in connected_component_vertices]
-    #   fig.add_trace(go.Scatter3d(x=x, y=y, z=z, mode='markers', marker=dict(size=3, color=colors[i])))
+    for i, connected_component_vertices in enumerate(connected_components_vertices):
+      x = [vertex[0] for vertex in connected_component_vertices]
+      y = [vertex[1] for vertex in connected_component_vertices]
+      z = [vertex[2] for vertex in connected_component_vertices]
+      # fig.add_trace(go.Scatter3d(x=x, y=y, z=z, mode='markers', marker=dict(size=3, color=colors[i])))
 
     # Plot useful_pairs edges
-    # for pair in useful_pairs:
-    #   edge = pair[0]
-    #   cls = pair[1]
-    #   v0 = vertices[edge[0]]
-    #   v1 = vertices[edge[1]]
-    #   fig.add_trace(go.Scatter3d(x=[v0[0], v1[0]], y=[v0[1], v1[1]], z=[v0[2], v1[2]], mode='lines', line=dict(width=2, color=colors[int(cls)])))
+    for pair in useful_pairs:
+      edge = pair[0]
+      cls = pair[1]
+      v0 = vertices[edge[0]]
+      v1 = vertices[edge[1]]
+      #fig.add_trace(go.Scatter3d(x=[v0[0], v1[0]], y=[v0[1], v1[1]], z=[v0[2], v1[2]], mode='lines', line=dict(width=4, color=colors[int(cls)])))
 
     # Show  0, 20 
+    fig.show()
+    break
     if m==0:  
       fig.show()
       break

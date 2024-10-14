@@ -165,8 +165,8 @@ def train(keypoints_predictor, optimizer, criterion, scaler, scheduler, train_lo
     
     print(f' - Train Loss: {train_loss} - Valid Loss: {valid_loss} - Learning Rate: {scheduler.get_last_lr()[0]}')
     
-    # if (epoch+1) % 10 == 0:
-    torch.save(keypoints_predictor.state_dict(), model_save_dir + f'checkpoints/keypoints_predictor_{epoch+1}.pth')
+    if (epoch+1) % 10 == 0:
+      torch.save(keypoints_predictor.state_dict(), model_save_dir + f'checkpoints/keypoints_predictor_{epoch+1}.pth')
 
   torch.save(keypoints_predictor.state_dict(), model_save_dir + 'keypoints_predictor.pth')
 
@@ -186,7 +186,7 @@ def hungarian_mpjpe(pred, target):
     mpjpe = total_error / (B * N)
     return mpjpe
 
-def hungarian_pck(pred, target, threshold=0.1):
+def hungarian_pck(pred, target, threshold=0.05):
     B, N, _ = pred.size()
 
     correct_keypoints = 0.0
