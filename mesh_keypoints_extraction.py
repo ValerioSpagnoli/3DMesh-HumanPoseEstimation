@@ -55,7 +55,7 @@ class MeshData(Dataset):
       padding = torch.zeros(self.num_edges - edge_features.shape[0], edge_features.shape[1]).to(self.device)  
       edge_features = torch.cat([edge_features, padding], dim=0)
     
-    
+    mesh_obj.vertices = mesh_obj.vertices * scale + centroid
     edge_features = edge_features.to(self.device) 
     keypoints = torch.tensor(keypoints).float().to(self.device)
     return mesh_obj, edge_features, keypoints
@@ -186,11 +186,13 @@ def hungarian_mpjpe(pred, target):
     mpjpe = total_error / (B * N)
     return mpjpe
 
-def hungarian_pck(pred, target, threshold=0.05):
+def hungarian_pck(pred, target, keypoints_threshold=0.1, mesh_treshold=0.9):
     B, N, _ = pred.size()
 
     correct_keypoints = 0.0
+    correct_meshes = 0.0
     total_keypoints = B * N
+    
 
     for b in range(B):
         pred_b = pred[b].float() if pred.dtype == torch.float16 else pred[b]
@@ -199,10 +201,12 @@ def hungarian_pck(pred, target, threshold=0.05):
         distance_matrix_np = distance_matrix.cpu().detach().numpy()
         row_indices, col_indices = linear_sum_assignment(distance_matrix_np)
         matched_distances = distance_matrix[row_indices, col_indices]
-        correct_keypoints += (matched_distances <= threshold).float().sum().item()
+        correct_keypoints += (matched_distances <= keypoints_threshold).float().sum().item()
+        correct_meshes += 1 if (matched_distances <= keypoints_threshold).float().sum().item()/N >= mesh_treshold else 0
         
     pck_score = correct_keypoints / total_keypoints
-    return pck_score
+    correct_meshes = correct_meshes / B
+    return pck_score, correct_meshes
 
 
 def test(keypoints_predictor, test_loader, criterion, device):
@@ -210,7 +214,10 @@ def test(keypoints_predictor, test_loader, criterion, device):
   
   test_loss = 0.0
   mpjpe = 0.0
-  pck = 0.0
+  pck_10 = 0.0
+  pck_5 = 0.0
+  correct_meshes_10 = 0.0
+  correct_meshes_5 = 0.0
   
   with torch.no_grad():
     for _, inputs, labels in tqdm(test_loader, desc=f"Testing"):
@@ -222,20 +229,34 @@ def test(keypoints_predictor, test_loader, criterion, device):
         
         test_loss += loss.item()
         mpjpe += hungarian_mpjpe(outputs, labels)
-        pck += hungarian_pck(outputs, labels)
-  
+        pck_10_, correct_meshes_10_ = hungarian_pck(outputs, labels, 0.1, 0.9)
+        pck_5_, correct_meshes_5_ = hungarian_pck(outputs, labels, 0.05, 0.9)
+        pck_10 += pck_10_
+        pck_5 += pck_5_
+        correct_meshes_10 += correct_meshes_10_
+        correct_meshes_5 += correct_meshes_5_
+        
   test_loss = test_loss/len(test_loader)
   mpjpe = mpjpe/len(test_loader)
-  pck = pck/len(test_loader)
+  pck_10 = pck_10/len(test_loader)
+  pck_5 = pck_5/len(test_loader)
+  correct_meshes_10 = correct_meshes_10/len(test_loader)
+  correct_meshes_5 = correct_meshes_5/len(test_loader)
   
   test_loss = round(float(test_loss), 4)
   mpjpe = round(float(mpjpe), 4)
-  pck = round(float(pck), 4)
+  pck_10 = round(float(pck_10), 4)
+  pck_5 = round(float(pck_5), 4)
+  correct_meshes_10 = round(float(correct_meshes_10), 4)
+  correct_meshes_5 = round(float(correct_meshes_5), 4)
   
   print(f'Test results:')
-  print(f' - Test Loss: {test_loss}')
-  print(f' - MPJPE:     {mpjpe} [m]')
-  print(f' - PCK:       {pck*100} %')
+  print(f' - Test Loss:         {test_loss}')
+  print(f' - MPJPE:             {mpjpe} [m]')
+  print(f' - PCK@10:            {pck_10*100} %')
+  print(f' - PCK@5:             {pck_5*100} %')
+  print(f' - Correct Meshes@10: {correct_meshes_10*100} %')
+  print(f' - Correct Meshes@5:  {correct_meshes_5*100} %')
   
 
 def test_single_mesh(keypoints_predictor, edge_features, keypoints, criterion, device):
@@ -244,15 +265,22 @@ def test_single_mesh(keypoints_predictor, edge_features, keypoints, criterion, d
 
   loss = criterion(predicted_keypoints, keypoints.unsqueeze(0).to(torch.float32).to(device))
   mpjpe = hungarian_mpjpe(predicted_keypoints, keypoints.unsqueeze(0).to(torch.float32).to(device))
-  pck = hungarian_pck(predicted_keypoints, keypoints.unsqueeze(0).to(torch.float32).to(device))
+  pck_10, correct_mesh_10 = hungarian_pck(predicted_keypoints, keypoints.unsqueeze(0).to(torch.float32).to(device), 0.1, 0.9)
+  pck_5, correct_mesh_5 = hungarian_pck(predicted_keypoints, keypoints.unsqueeze(0).to(torch.float32).to(device), 0.05, 0.9)
   
   loss = round(float(loss), 4)
   mpjpe = round(float(mpjpe), 4)
-  pck = round(float(pck), 4)
+  pck_10 = round(float(pck_10), 4)
+  pck_5 = round(float(pck_5), 4)
+  correct_mesh_10 = round(float(correct_mesh_10), 4)
+  correct_mesh_5 = round(float(correct_mesh_5), 4)
   
   print(f'Test results:')
-  print(f' - Test Loss: {loss}')
-  print(f' - MPJPE:     {mpjpe} [m]')
-  print(f' - PCK:       {pck*100} %')
+  print(f' - Test Loss:         {loss}')
+  print(f' - MPJPE:             {mpjpe} [m]')
+  print(f' - PCK@10:            {pck_10*100} %')
+  print(f' - PCK@5:             {pck_5*100} %')
+  print(f' - Correct Meshes@10: {correct_mesh_10*100} %')
+  print(f' - Correct Meshes@5:  {correct_mesh_5*100} %')
   
   return predicted_keypoints.cpu().detach().numpy()[0]

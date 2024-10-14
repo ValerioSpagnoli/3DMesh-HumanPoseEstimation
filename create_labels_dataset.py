@@ -5,8 +5,10 @@ from pathlib import Path
 import tqdm
 from collections import defaultdict
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import trimesh
 import pandas as pd
+import time
 
 
 # classes: 
@@ -152,6 +154,7 @@ if __name__ == "__main__":
   m = 0
   count_num_keypoints = {}
   for mesh_file, seg_file in pair_list:
+    start = time.time()
 
     edge_label_pairs = create_labels_for_mesh(mesh_path, seg_path, mesh_file, seg_file)
     useful_vertices_dict = create_useful_vertices_dict(edge_label_pairs)
@@ -198,28 +201,39 @@ if __name__ == "__main__":
       mean[1] /= len(connected_component_vertices)
       mean[2] /= len(connected_component_vertices)
       keypoints.append(mean)
-
     
-    # if len(keypoints) == 12:
-    #   keypoints_path = os.path.join(output_keypoints_path, mesh_file[:-4] + '.csv')
-    #   save_keypoints_to_file(keypoints_path, keypoints, None)
-    # else:
-    #   os.rename(os.path.join(mesh_path, mesh_file), os.path.join(root_dir, 'other_mesh', mesh_file))
+    if len(keypoints) == 12:
+      keypoints_path = os.path.join(output_keypoints_path, mesh_file[:-4] + '.csv')
+      save_keypoints_to_file(keypoints_path, keypoints, None)
+    else:
+      os.rename(os.path.join(mesh_path, mesh_file), os.path.join(root_dir, 'other_mesh', mesh_file))
       
     count_num_keypoints[len(keypoints)] = count_num_keypoints.get(len(keypoints), 0) + 1
   
     #* Plot
     fig = go.Figure()
-    fig.update_layout(scene=dict(aspectmode='data'))
+    
+    fig = make_subplots(rows=1, cols=4, specs=[[{"type": "scene"}, {"type": "scene"}, {"type": "scene"}, {"type": "scene"}]])
+    
     colors = ['red', 'green', 'blue', 'yellow', 'purple', 'orange', 'pink', 'cyan', 'magenta', 'brown', 'grey', 'black', 'white', 'silver']
 
     # Plot the mesh
-    fig.add_trace(go.Mesh3d(x=vertices[:, 0], y=vertices[:, 1],  z=vertices[:, 2], i=mesh.faces[:, 0], j=mesh.faces[:, 1], k=mesh.faces[:, 2], color='lightgrey', opacity=0.5))
-
-    # Plot keypoints
-    for keypoint in keypoints:
-        fig.add_trace(go.Scatter3d(x=[keypoint[0]], y=[keypoint[1]], z=[keypoint[2]], mode='markers', marker=dict(size=3, color='green')))
-        pass
+    fig.add_trace(
+      go.Mesh3d(x=vertices[:, 0], y=vertices[:, 1],  z=vertices[:, 2], i=mesh.faces[:, 0], j=mesh.faces[:, 1], k=mesh.faces[:, 2], color='lightgrey', opacity=0.5),
+      row=1, col=1
+    )
+    fig.add_trace(
+      go.Mesh3d(x=vertices[:, 0], y=vertices[:, 1],  z=vertices[:, 2], i=mesh.faces[:, 0], j=mesh.faces[:, 1], k=mesh.faces[:, 2], color='lightgrey', opacity=0.5),
+      row=1, col=2
+    )
+    fig.add_trace(
+      go.Mesh3d(x=vertices[:, 0], y=vertices[:, 1],  z=vertices[:, 2], i=mesh.faces[:, 0], j=mesh.faces[:, 1], k=mesh.faces[:, 2], color='lightgrey', opacity=0.5),
+      row=1, col=3
+    )
+    fig.add_trace(
+      go.Mesh3d(x=vertices[:, 0], y=vertices[:, 1],  z=vertices[:, 2], i=mesh.faces[:, 0], j=mesh.faces[:, 1], k=mesh.faces[:, 2], color='lightgrey', opacity=0.5),
+      row=1, col=4
+    )
 
     # Plot connected components of a specific class
     # cls = {'1', '5'}
@@ -233,15 +247,11 @@ if __name__ == "__main__":
     # Plot useful vertices
     useful_vertices_coordinates = [vertices[vertex] for vertex in useful_vertices_dict]
     for useful_vertex in useful_vertices_coordinates:
-        #fig.add_trace(go.Scatter3d(x=[useful_vertex[0]], y=[useful_vertex[1]], z=[useful_vertex[2]], mode='markers', marker=dict(size=3)))
+        fig.add_trace(
+          go.Scatter3d(x=[useful_vertex[0]], y=[useful_vertex[1]], z=[useful_vertex[2]], mode='markers', marker=dict(size=3)),
+          row=1, col=1
+        )
         pass
-
-    # Plot connected components
-    for i, connected_component_vertices in enumerate(connected_components_vertices):
-      x = [vertex[0] for vertex in connected_component_vertices]
-      y = [vertex[1] for vertex in connected_component_vertices]
-      z = [vertex[2] for vertex in connected_component_vertices]
-      # fig.add_trace(go.Scatter3d(x=x, y=y, z=z, mode='markers', marker=dict(size=3, color=colors[i])))
 
     # Plot useful_pairs edges
     for pair in useful_pairs:
@@ -249,14 +259,32 @@ if __name__ == "__main__":
       cls = pair[1]
       v0 = vertices[edge[0]]
       v1 = vertices[edge[1]]
-      #fig.add_trace(go.Scatter3d(x=[v0[0], v1[0]], y=[v0[1], v1[1]], z=[v0[2], v1[2]], mode='lines', line=dict(width=4, color=colors[int(cls)])))
+      fig.add_trace(
+        go.Scatter3d(x=[v0[0], v1[0]], y=[v0[1], v1[1]], z=[v0[2], v1[2]], mode='lines', line=dict(width=4, color=colors[int(cls)])),
+        row=1, col=2
+      )
 
-    # Show  0, 20 
-    fig.show()
-    break
-    if m==0:  
-      fig.show()
-      break
-    m += 1
-        
+    # Plot connected components
+    for i, connected_component_vertices in enumerate(connected_components_vertices):
+      x = [vertex[0] for vertex in connected_component_vertices]
+      y = [vertex[1] for vertex in connected_component_vertices]
+      z = [vertex[2] for vertex in connected_component_vertices]
+      fig.add_trace(
+        go.Scatter3d(x=x, y=y, z=z, mode='markers', marker=dict(size=3, color=colors[i])),
+        row=1, col=3
+      )
+
+    # Plot keypoints
+    for keypoint in keypoints:
+        fig.add_trace(
+          go.Scatter3d(x=[keypoint[0]], y=[keypoint[1]], z=[keypoint[2]], mode='markers', marker=dict(size=3, color='green')),
+          row=1, col=4
+        )
+        pass
+
+    # update layout for all subplots
+    fig.update_layout(scene=dict(aspectmode='data'), scene2=dict(aspectmode='data'), scene3=dict(aspectmode='data'), scene4=dict(aspectmode='data'))
+    
+    # fig.show()
+    
   print(count_num_keypoints)
