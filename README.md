@@ -1,4 +1,4 @@
-# 3DMesh-HumanPoseEstimation
+# A Simple Neural Network Approach for 3D Human Mesh Keypoints Estimation with a Novel Dataset
 
 This repository presents a novel approach for 3D human mesh keypoint estimation, featuring a newly developed dataset and a simple neural network architecture.
 
